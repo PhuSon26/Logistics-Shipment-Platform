@@ -1,0 +1,38 @@
+package com.logistics.authservice.controller;
+
+import com.logistics.authservice.dto.AuthResponse;
+import com.logistics.authservice.dto.LoginRequest;
+import com.logistics.authservice.dto.RegisterRequest;
+import com.logistics.authservice.service.AuthService;
+
+import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@CrossOrigin(origins = "http://localhost:5173")
+public class AuthController {
+
+    private final AuthService authService;
+
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+
+    @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AuthResponse register(
+            @Valid @RequestBody RegisterRequest request) {
+
+        return authService.register(request);
+    }
+
+    @PostMapping("/login")
+    public AuthResponse login(
+            @Valid @RequestBody LoginRequest request) {
+
+        return authService.login(request);
+    }
+}

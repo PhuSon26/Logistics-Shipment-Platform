@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:8086}
+spring:
+  application:
+    name: tracking-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/trackingdb}
+    username: ${SPRING_DATASOURCE_USERNAME:logistics}
+    password: ${SPRING_DATASOURCE_PASSWORD:logistics123}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  jackson:
+    default-property-inclusion: non_null
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

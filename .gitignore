@@ -1,0 +1,20 @@
+# Frontend
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+# Backend
+target/
+# Environment
+.env
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+# Ansible
+*.vault
+#
+.idea/
+.vscode/
+.DS_Store
+*.log

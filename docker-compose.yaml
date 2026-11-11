@@ -1,0 +1,160 @@
+services:
+  postgres:
+    image: dhi.io/postgres:18-alpine3.23-dev
+    container_name: logistics-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: logistics
+      POSTGRES_PASSWORD: logistics123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logistics"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.2.9-management-alpine
+    container_name: logistics-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: logistics
+      RABBITMQ_DEFAULT_PASS: logistics123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.12-rc2-alpine3.23
+    container_name: logistics-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ./backend
+      dockerfile: services/auth-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/authdb
+      SPRING_DATASOURCE_USERNAME  : logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  customer-service:
+    build:
+      context: ./backend
+      dockerfile: services/customer-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/customerdb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: services/notification-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notificationdb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  order-service:
+    build:
+      context: ./backend
+      dockerfile: services/order-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderdb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  shipment-service:
+    build:
+      context: ./backend
+      dockerfile: services/shipment-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipmentdb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  tracking-service:
+    build:
+      context: ./backend
+      dockerfile: services/tracking-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/trackingdb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  warehouse-service:
+    build:
+      context: ./backend
+      dockerfile: services/warehouse-service/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/warehousedb
+      SPRING_DATASOURCE_USERNAME: logistics
+      SPRING_DATASOURCE_PASSWORD: logistics123
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      WAREHOUSE_SERVICE_URL: http://warehouse-service:8084
+      SHIPMENT_SERVICE_URL: http://shipment-service:8085
+      TRACKING_SERVICE_URL: http://tracking-service:8086
+      NOTIFICATION_SERVICE_URL: http://notification-service:8087
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - customer-service
+      - notification-service
+      - order-service
+      - shipment-service
+      - tracking-service
+      - warehouse-service
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: logistics-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:
