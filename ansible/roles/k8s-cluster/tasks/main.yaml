@@ -41,9 +41,12 @@
     state: present
     update_cache: true
     lock_timeout: 300
-  notify:
-    - Update containerd config to use systemd
-    - Restart containerd
+
+- name: Configure containerd to use systemd cgroup
+  ansible.builtin.shell: |
+    mkdir -p /etc/containerd
+    containerd config default | sed 's/SystemdCgroup = false/SystemdCgroup = true/g' > /etc/containerd/config.toml
+  notify: Restart containerd
 
 - name: Hold Kubernetes packages and enable kubelet
   ansible.builtin.shell: apt-mark hold kubelet kubeadm kubectl && systemctl enable kubelet
