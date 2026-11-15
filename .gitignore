@@ -1,0 +1,21 @@
+# Environment & SSH Keys
+.env
+.env.*
+*.pem
+
+# Build & Dependencies
+**/target/
+**/node_modules/
+**/dist/
+
+# IDE & Logs
+.idea/
+.vscode/
+*.log
+
+# Terraform & Ansible
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.retry

@@ -1,0 +1,192 @@
+name: fleetflow
+
+x-spring-env: &spring-env
+  SPRING_DATASOURCE_USERNAME: logistics
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-logistics_local_2026}
+  JWT_SECRET: ${JWT_SECRET:-bG9naXN0aWNzLWxvY2FsLWRldi1qd3Qtc2VjcmV0LWtleS0yMDI2IQ==}
+  JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: 5672
+  SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-fleetflow}
+  SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-fleetflow_local_2026}
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: 6379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fleetflow-postgres
+    environment:
+      POSTGRES_USER: logistics
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-logistics_local_2026}
+      POSTGRES_DB: postgres
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logistics -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: fleetflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-fleetflow}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-fleetflow_local_2026}
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: fleetflow-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  auth-service:
+    ports: ["127.0.0.1:8081:8081"]
+    build:
+      context: ./backend
+      dockerfile: services/auth-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/authdb
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  customer-service:
+    ports: ["127.0.0.1:8082:8082"]
+    build:
+      context: ./backend
+      dockerfile: services/customer-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/customerdb
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  order-service:
+    ports: ["127.0.0.1:8083:8083"]
+    build:
+      context: ./backend
+      dockerfile: services/order-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderdb
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  warehouse-service:
+    ports: ["127.0.0.1:8084:8084"]
+    build:
+      context: ./backend
+      dockerfile: services/warehouse-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/warehousedb
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  shipment-service:
+    ports: ["127.0.0.1:8085:8085"]
+    build:
+      context: ./backend
+      dockerfile: services/shipment-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shipmentdb
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  tracking-service:
+    ports: ["127.0.0.1:8086:8086"]
+    build:
+      context: ./backend
+      dockerfile: services/tracking-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8086
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/trackingdb
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  notification-service:
+    ports: ["127.0.0.1:8087:8087"]
+    build:
+      context: ./backend
+      dockerfile: services/notification-service/Dockerfile
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notificationdb
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      SERVER_PORT: 8080
+      AUTH_SERVICE_URL: http://auth-service:8081
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      WAREHOUSE_SERVICE_URL: http://warehouse-service:8084
+      SHIPMENT_SERVICE_URL: http://shipment-service:8085
+      TRACKING_SERVICE_URL: http://tracking-service:8086
+      NOTIFICATION_SERVICE_URL: http://notification-service:8087
+    ports: ["8080:8080"]
+    depends_on:
+      auth-service: { condition: service_started }
+      customer-service: { condition: service_started }
+      order-service: { condition: service_started }
+      warehouse-service: { condition: service_started }
+      shipment-service: { condition: service_started }
+      tracking-service: { condition: service_started }
+      notification-service: { condition: service_started }
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: fleetflow-frontend
+    ports: ["3001:80"]
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
