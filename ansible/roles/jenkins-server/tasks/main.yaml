@@ -56,11 +56,22 @@
     state: present
     reload: yes
 
+- name: Add Trivy GPG key
+  get_url:
+    url: https://aquasecurity.github.io/trivy-repo/deb/public.key
+    dest: /etc/apt/keyrings/trivy.asc
+    mode: '0644'
+
+- name: Add Trivy apt repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/trivy.asc] https://aquasecurity.github.io/trivy-repo/deb generic main"
+    state: present
+
 - name: Install Trivy
-  shell: |
-    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v{{ trivy_version }}
-  args:
-    creates: /usr/local/bin/trivy
+  apt:
+    name: trivy
+    state: present
+    update_cache: yes
 
 - name: Install Gitleaks
   unarchive:
@@ -97,7 +108,6 @@
     owner: ubuntu
     group: ubuntu
     mode: '0644'
-  notify: Restart Jenkins Stack
 
 - name: Start Jenkins and SonarQube
   command: docker compose up -d
@@ -107,7 +117,7 @@
 - name: Wait for Jenkins initial admin password
   wait_for:
     path: "{{ jenkins_stack_dir }}/jenkins_data/secrets/initialAdminPassword"
-    timeout: 120
+    timeout: 300
 
 - name: Read Jenkins initial admin password
   slurp:
