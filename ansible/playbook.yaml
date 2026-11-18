@@ -1,6 +1,11 @@
 - name: Setup k8s cluster
-  hosts: all
+  hosts: k8s_cluster
   become: true
   roles:
     - k8s-cluster
-    - jenkins
+
+- name: Setup Jenkins server
+  hosts: jenkins_server
+  become: true
+  roles:
+    - jenkins-server
