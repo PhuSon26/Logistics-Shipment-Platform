@@ -9,3 +9,15 @@
   become: true
   roles:
     - jenkins-server
+
+- name: Install trivy on Jenkins server
+  hosts: jenkins_server
+  become: true
+  roles:
+    - trivy
+
+- name: Setup SonarQube server
+  hosts: sonarqube_server
+  become: true
+  roles:
+    - sonarqube-server

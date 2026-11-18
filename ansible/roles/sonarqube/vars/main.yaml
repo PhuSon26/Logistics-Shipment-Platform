@@ -1,0 +1,5 @@
+sonar_db_name: "logistic-shipent"
+sonar_db_user: "phuson"
+sonar_db_password: "phuson"
+sonarqube_version: "sonarqube-25.2.0.102705"
+sonarscanner_version: "sonar-scanner-cli-7.0.1.4817-linux-x64"

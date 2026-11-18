@@ -1,0 +1,92 @@
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install required dependencies
+  ansible.builtin.apt:
+    name:
+      - postgresql-common
+      - postgresql
+      - unzip
+      - openjdk-21-jdk
+      - wget
+
+- name: Enable and start Posrgres service
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Create a PostgreSQL Role for SonarQube
+  become_user: postgres
+  postgresql_user:
+    name: "{{ sonar_db_user }}"
+    password: "{{ sonar_db_password }}"
+    encrypted: true
+    state: present
+
+- name: Create a SonarQube Database
+  become_user: postgres
+  postgresql_db:
+    name: "{{ sonar_db_name}}"
+    owner: "{{ sonar_db_user }}"
+    state: present
+
+- name: Grant privileges on database and public schema
+  become_user: postgres
+  postgresql_privs:
+    database: "{{ sonar_db_name }}"
+    role: "phuson"
+    privs: ALL
+    type: database
+
+- name: Create dedicated system user for SonarQube
+  ansible.builtin.user:
+    name: sonarqube
+    system: user
+    create_home: false
+    shell: /bin/false
+
+- name: Download SonarQube archive
+  ansible.builtin.get_url:
+    url: "https://binaries.sonarsource.com/Distribution/sonarqube/{{ sonarqube_version }}.zip"
+    dest: "/tmp/sonarqube.zip"
+    mode: "0644"
+
+- name: Extract SonarQube archive
+  ansible.builtin.unarchive:
+    src: "/tmp/sonarqube.zip"
+    dest: "/opt/"
+    remote_src: true
+    creates: "/opt/{{ sonarqube_version }}"
+
+- name: Rename SonarQube directory
+  ansible.builtin.command:
+    cmd: "mv /opt/{{ sonarqube_version }} /opt/sonarqube"
+    creates: "/opt/sonarqube"
+
+- name: Grant ownership of /opt/sonarqube to sonarqube user
+  ansible.builtin.file:
+    path: "/opt/sonarqube"
+    owner: sonarqube
+    group: sonarqube
+    recurse: true
+
+- name: Download SonarScanner CLI archive
+  ansible.builtin.get_url:
+    url: "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/{{ sonarscanner_version }}.zip"
+    dest: "/tmp/sonar-scanenr.zip"
+    mode: "0644"
+
+- name: Extract SonarScanner CLI archive
+  ansible.builtin.unarchive:
+    src: "/tmp/sonar-scanenr.zip"
+    dest: "/opt/"
+    remote_src: true
+    creates: "/opt/{{ sonarscanner_version }}"
+
+- name: Rename SonarScanner directory
+  ansible.builtin.command:
+    cmd: "mv /opt/{{ sonarscanner_version }} /opt/sonnarscanner"
+    creates: "/opt/sonnarscanner"

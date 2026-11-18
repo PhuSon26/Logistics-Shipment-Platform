@@ -1,0 +1,39 @@
+- name: Install wget and gnupg
+  ansible.builtin.apt:
+    name:
+      - wget
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Create public key directory
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Trivy GPG public key
+  ansible.builtin.get_url:
+    url: https://aquasecurity.github.io/trivy-repo/deb/public.key
+    dest: /tmp/trivy-public.key
+    mode: "0644"
+
+- name: Convert GPG key to dearmor format
+  ansible.builtin.command:
+    cmd: gpg --dearmor -o /usr/share/keyrings/trivy.gpg /tmp/trivy-public.key
+    creates: /usr/share/keyrings/trivy.gpg
+
+- name: Add Trivy repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main"
+    filename: trivy
+    state: present
+
+- name: Update cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install trivy
+  ansible.builtin.apt:
+    name: trivy
+    state: present
